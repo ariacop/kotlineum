@@ -4,3 +4,8 @@ export * from './useSharedFlow';
 export * from './useStateFlow';
 export * from './GlobalSharedFlow';
 export * from './GlobalStateFlow';
+
+// Export ViewModel functionality
+export * from './ViewModel';
+export * from './ViewModelProvider';
+export * from './useViewModel';
