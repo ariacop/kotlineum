@@ -1,6 +1,7 @@
 // useListStateFlow.ts
 import { useEffect, useState } from 'react';
-import { ListStateFlow, GlobalListStateFlow, ListStateFlowOptions } from './ListStateFlow';
+import { ListStateFlow, ListStateFlowOptions } from './ListStateFlow';
+import { GlobalListStateFlow } from './GlobalListStateFlow';
 
 /**
  * React hook for using a ListStateFlow with automatic subscription management

@@ -213,27 +213,17 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
   }
 }
 
-/**
- * Create a global ListStateFlow
- */
-export function GlobalListStateFlow<T extends Record<string | number | symbol, any>>(
-  key: string,
-  initialItems: T[] = [],
-  options: ListStateFlowOptions<T> = {}
-): ListStateFlow<T> {
-  return new ListStateFlow<T>(key, initialItems, options);
-}
+// GlobalListStateFlow is now defined in GlobalListStateFlow.ts
 
 /**
  * React hook to use a ListStateFlow
+ * @deprecated Use useGlobalListStateFlow from useListStateFlow.ts instead
  */
 export function useListStateFlow<T extends Record<string | number | symbol, any>>(
   key: string,
   initialItems: T[] = [],
   options: ListStateFlowOptions<T> = {}
 ): ListStateFlow<T> {
-  // Create or get the ListStateFlow
-  const listFlow = GlobalListStateFlow<T>(key, initialItems, options);
-  
-  return listFlow;
+  // Create a new ListStateFlow instance
+  return new ListStateFlow<T>(key, initialItems, options);
 }

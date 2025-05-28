@@ -81,10 +81,7 @@ export declare class ListStateFlow<T extends Record<string | number | symbol, an
     get size(): number;
 }
 /**
- * Create a global ListStateFlow
- */
-export declare function GlobalListStateFlow<T extends Record<string | number | symbol, any>>(key: string, initialItems?: T[], options?: ListStateFlowOptions<T>): ListStateFlow<T>;
-/**
  * React hook to use a ListStateFlow
+ * @deprecated Use useGlobalListStateFlow from useListStateFlow.ts instead
  */
 export declare function useListStateFlow<T extends Record<string | number | symbol, any>>(key: string, initialItems?: T[], options?: ListStateFlowOptions<T>): ListStateFlow<T>;
