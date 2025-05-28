@@ -3,6 +3,7 @@ import { SharedFlowExample } from './SharedFlowExample';
 import { StateFlowExample } from './StateFlowExample';
 import PersistentStateFlowExample from './PersistentStateFlowExample';
 import LargeListStateFlowExample from './LargeListStateFlowExample';
+import RealTimeListExample from './RealTimeListExample';
 
 export const Examples: React.FC = () => {
   return (
@@ -17,6 +18,8 @@ export const Examples: React.FC = () => {
       <PersistentStateFlowExample />
       <hr />
       <LargeListStateFlowExample />
+      <hr />
+      <RealTimeListExample />
     </div>
   );
 };
