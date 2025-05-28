@@ -4,6 +4,7 @@ import { StateFlowExample } from './StateFlowExample';
 import PersistentStateFlowExample from './PersistentStateFlowExample';
 import LargeListStateFlowExample from './LargeListStateFlowExample';
 import RealTimeListExample from './RealTimeListExample';
+import ViewModelListExample from './ViewModelListExample';
 
 export const Examples: React.FC = () => {
   return (
@@ -20,6 +21,8 @@ export const Examples: React.FC = () => {
       <LargeListStateFlowExample />
       <hr />
       <RealTimeListExample />
+      <hr />
+      <ViewModelListExample />
     </div>
   );
 };
