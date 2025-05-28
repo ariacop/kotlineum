@@ -1,6 +1,8 @@
 import React from 'react';
 import { SharedFlowExample } from './SharedFlowExample';
 import { StateFlowExample } from './StateFlowExample';
+import PersistentStateFlowExample from './PersistentStateFlowExample';
+import LargeListStateFlowExample from './LargeListStateFlowExample';
 
 export const Examples: React.FC = () => {
   return (
@@ -11,8 +13,12 @@ export const Examples: React.FC = () => {
       <SharedFlowExample />
       <hr />
       <StateFlowExample />
+      <hr />
+      <PersistentStateFlowExample />
+      <hr />
+      <LargeListStateFlowExample />
     </div>
   );
 };
 
-export { SharedFlowExample, StateFlowExample };
+export { SharedFlowExample, StateFlowExample, PersistentStateFlowExample, LargeListStateFlowExample };

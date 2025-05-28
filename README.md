@@ -20,6 +20,9 @@ yarn add kotlineum
 - 🔄 **StateFlow**: A state holder observable flow that emits the current and new state updates to its collectors
 - 📡 **SharedFlow**: A hot flow that emits values to all collectors
 - 🌐 **Global Flows**: Create application-wide flows accessible from any component
+- 💾 **Persistent State**: Automatically save and recover state with localStorage or IndexedDB
+- 💪 **Performance Optimized**: Debouncing, connection pooling, and memory leak prevention
+- 📂 **ListStateFlow**: Efficiently manage large lists with individual item updates
 - 🏗️ **ViewModels**: MVVM architecture pattern implementation
 - ⚛️ **React Hooks**: Easy integration with React components
 
@@ -223,6 +226,213 @@ function CounterControls() {
 }
 ```
 
+#### Persistent Global StateFlow
+
+You can make your GlobalStateFlow persist to localStorage or IndexedDB, which will automatically save state changes asynchronously and recover state when the application loads, even if offline:
+
+```tsx
+import { useGlobalStateFlow, StorageType } from 'kotlineum';
+
+function PersistentCounter() {
+  // Create a persistent global StateFlow with localStorage
+  const [count, setCount] = useGlobalStateFlow('counter', 0, {
+    enabled: true, // Enable persistence
+    storageType: StorageType.LOCAL_STORAGE, // Default, can be omitted
+    storageKey: 'my-app-counter', // Custom localStorage key (optional)
+    debounceTime: 300, // Debounce time in ms (default: 300)
+  });
+  
+  return (
+    <div>
+      <p>Count: {count}</p>
+      <p>This counter will persist even if you refresh the page!</p>
+      <button onClick={() => setCount(count + 1)}>Increment</button>
+    </div>
+  );
+}
+```
+
+For larger or more complex data, you can use IndexedDB for better performance:
+
+```tsx
+// Store complex data in IndexedDB
+const [userData, setUserData] = useGlobalStateFlow(
+  'userData',
+  { 
+    profile: { name: 'Guest', email: '' },
+    preferences: { theme: 'light', notifications: true },
+    history: [] 
+  },
+  {
+    enabled: true,
+    storageType: StorageType.INDEXED_DB, // Use IndexedDB instead of localStorage
+    dbName: 'my-app-database', // Custom database name
+    storeName: 'user-store', // Custom store name
+    debounceTime: 500, // Longer debounce for complex data
+    // Custom serialization/deserialization
+    serialize: (value) => JSON.stringify(value),
+    deserialize: (stored) => JSON.parse(stored)
+  }
+);
+```
+
+For any storage type, you can provide custom serialization/deserialization functions:
+
+```tsx
+const [user, setUser] = useGlobalStateFlow(
+  'user',
+  { name: 'Guest', lastLogin: new Date().toISOString() },
+  {
+    enabled: true,
+    serialize: (value) => JSON.stringify(value),
+    deserialize: (stored) => {
+      const parsed = JSON.parse(stored);
+      return {
+        ...parsed,
+        // Convert ISO string back to Date if needed
+        lastLogin: new Date(parsed.lastLogin).toISOString()
+      };
+    }
+  }
+);
+```
+
+### Storage Types
+
+Choose between localStorage and IndexedDB for persistence:
+
+```typescript
+enum StorageType {
+  /** Use localStorage (default) */
+  LOCAL_STORAGE = 'localStorage',
+  /** Use IndexedDB */
+  INDEXED_DB = 'indexedDB'
+}
+```
+
+### PersistOptions
+
+Options for configuring persistence with GlobalStateFlow:
+
+```typescript
+interface PersistOptions {
+  /** Key to use in storage (defaults to 'kotlineum_state_[key]') */
+  storageKey?: string;
+  /** Whether to enable persistence (must be true to enable persistence) */
+  enabled?: boolean;
+  /** Storage type to use (localStorage or indexedDB) */
+  storageType?: StorageType;
+  /** Database name for IndexedDB (only used with IndexedDB, defaults to 'kotlineum_db') */
+  dbName?: string;
+  /** Store name for IndexedDB (only used with IndexedDB, defaults to 'kotlineum_store') */
+  storeName?: string;
+  /** Debounce time in ms for saving to storage (default: 300) */
+  debounceTime?: number;
+  /** Custom serializer function (defaults to JSON.stringify) */
+  serialize?: (value: any) => string;
+  /** Custom deserializer function (defaults to JSON.parse) */
+  deserialize?: (value: string) => any;
+}
+```
+
+### Performance Optimizations
+
+The persistence implementation includes several performance optimizations:
+
+1. **Debouncing**: Prevents excessive writes during rapid state changes
+2. **Connection Pooling**: Reuses IndexedDB connections to reduce overhead
+3. **Async Operations**: All storage operations are non-blocking
+4. **Memory Leak Prevention**: Properly closes connections and cleans up resources
+5. **Error Handling**: Robust error handling prevents crashes
+
+### ListStateFlow
+
+ListStateFlow is a specialized flow for efficiently managing large lists with individual item updates, similar to how Kotlin handles collections.
+
+```tsx
+import { useGlobalListStateFlow, useListItem } from 'kotlineum';
+
+// Create a ListStateFlow for a large collection
+const [records, listFlow] = useGlobalListStateFlow<Record>(
+  'recordsList',
+  initialRecords,
+  {
+    idField: 'id', // Specify which field is the unique identifier
+    persistOptions: {
+      enabled: true,
+      storageType: StorageType.INDEXED_DB
+    }
+  }
+);
+
+// In a child component, subscribe to just one item
+const RecordItem = ({ recordId }) => {
+  // Only subscribe to changes for this specific record
+  const [record, updateRecord] = useListItem(listFlow, recordId);
+  
+  if (!record) return null;
+  
+  return (
+    <div>
+      <h3>{record.name}</h3>
+      <p>Status: {record.status}</p>
+      
+      {/* Update only this record */}
+      <button onClick={() => {
+        updateRecord(r => ({
+          ...r,
+          status: r.status === 'active' ? 'inactive' : 'active'
+        }));
+      }}>
+        Toggle Status
+      </button>
+    </div>
+  );
+};
+```
+
+#### ListStateFlow Methods
+
+```typescript
+// Get all items
+const items = listFlow.getItems();
+
+// Get a specific item
+const item = listFlow.getItem(id);
+
+// Update a specific item
+listFlow.updateItem(id, item => ({ ...item, status: 'active' }));
+
+// Add a new item
+listFlow.addItem({ id: 123, name: 'New Item', status: 'active' });
+
+// Remove an item
+listFlow.removeItem(id);
+
+// Batch update multiple items at once
+listFlow.batchUpdate([
+  { id: 1, update: item => ({ ...item, status: 'active' }) },
+  { id: 2, update: item => ({ ...item, status: 'inactive' }) }
+]);
+
+// Filter items (doesn't modify the original list)
+const activeItems = listFlow.filter(item => item.status === 'active');
+
+// Map items (doesn't modify the original list)
+const names = listFlow.map(item => item.name);
+```
+
+#### ListStateFlow Options
+
+```typescript
+interface ListStateFlowOptions<T> {
+  /** Custom ID field for list items (default: 'id') */
+  idField?: keyof T;
+  /** Persistence options */
+  persistOptions?: PersistOptions;
+}
+```
+
 ### SharedFlow
 
 SharedFlow is a hot flow that emits values to all collectors without maintaining state.
@@ -365,14 +575,14 @@ const [emitUser, subscribeToUser] = useSharedFlow<User>();
 #### `useStateFlow<T>(initialValue: T): [T, (newValue: T) => void]`
 Creates a local StateFlow with the given initial value.
 
-#### `useGlobalStateFlow<T>(key: string, initialValue: T): [T, (newValue: T) => void]`
-Creates or connects to a global StateFlow with the given key and initial value.
+#### `useGlobalStateFlow<T>(key: string, initialValue: T, persistOptions?: PersistOptions): [T, (newValue: T) => void]`
+Creates or connects to a global StateFlow with the given key and initial value. Optionally configure persistence to localStorage.
 
 #### `StateFlow<T>(initialValue: T): StateFlow<T>`
 Factory function to create a StateFlow object.
 
-#### `GlobalStateFlow<T>(key: string, initialValue: T): StateFlow<T>`
-Factory function to create or get a global StateFlow object.
+#### `GlobalStateFlow<T>(key: string, initialValue: T, persistOptions?: PersistOptions): StateFlow<T>`
+Factory function to create or get a global StateFlow object. Optionally configure persistence to localStorage.
 
 ### SharedFlow
 
