@@ -1,6 +1,6 @@
 {
   "name": "kotlineum",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "React implementation of Kotlin patterns and features, including Flow patterns (SharedFlow and StateFlow) and MVVM architecture with ViewModels",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
