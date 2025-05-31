@@ -25,17 +25,6 @@ yarn add kotlineum
 - 📂 **ListStateFlow**: Efficiently manage large lists with individual item updates
 - 🏗️ **ViewModels**: MVVM architecture pattern implementation
 - ⚛️ **React Hooks**: Easy integration with React components
-
-### Current Features
-
-- 🔄 **StateFlow**: A state holder observable flow that emits the current and new state updates to its collectors
-- 📡 **SharedFlow**: A hot flow that emits values to all collectors
-- 🌐 **Global Flows**: Create application-wide flows accessible from any component
-- 💾 **Persistent State**: Automatically save and recover state with localStorage or IndexedDB
-- 💪 **Performance Optimized**: Debouncing, connection pooling, and memory leak prevention
-- 📂 **ListStateFlow**: Efficiently manage large lists with individual item updates
-- 🏗️ **ViewModels**: MVVM architecture pattern implementation
-- ⚛️ **React Hooks**: Easy integration with React components
 - 🔄 **Coroutines**: Kotlin-inspired asynchronous programming with Flow API
 
 ### Coming Soon
