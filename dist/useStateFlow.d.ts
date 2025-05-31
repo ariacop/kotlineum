@@ -8,6 +8,7 @@ export interface StateFlow<T> {
     unsubscribe: (uniqueId: string) => void;
     update: (newValue: T) => void;
     getSubscriberCount: () => number;
+    dispose: () => void;
 }
 /**
  * Creates a local StateFlow instance

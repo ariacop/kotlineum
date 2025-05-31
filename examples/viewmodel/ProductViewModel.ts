@@ -24,11 +24,23 @@ export enum ProductEvent {
   ERROR = 'ERROR'
 }
 
+// Define intents for the ViewModel (MVI pattern)
+export type ProductIntent =
+  | { type: 'FETCH_PRODUCTS' }
+  | { type: 'ADD_PRODUCT'; product: Product }
+  | { type: 'UPDATE_PRODUCT'; id: number; updates: Partial<Omit<Product, 'id'>> }
+  | { type: 'REMOVE_PRODUCT'; id: number }
+  | { type: 'UPDATE_STOCK'; id: number; newStock: number }
+  | { type: 'BATCH_UPDATE_STOCK'; updates: Array<{ id: number; newStock: number }> }
+  | { type: 'CONNECT_REALTIME' }
+  | { type: 'DISCONNECT_REALTIME' }
+
 /**
  * ProductViewModel combines business logic with efficient list state management
  * It handles both API calls and real-time updates
+ * Now implements MVI pattern with intents
  */
-export class ProductViewModel extends ViewModel<Product[], ProductEvent> {
+export class ProductViewModel extends ViewModel<Product[], ProductEvent, ProductIntent> {
   // ListStateFlow for efficient list management
   private productsListFlow: ListStateFlow<Product>;
   // Store unsubscribe functions
@@ -117,9 +129,44 @@ export class ProductViewModel extends ViewModel<Product[], ProductEvent> {
   }
 
   /**
+   * Process intents according to the MVI pattern
+   * @param intent The intent to process
+   */
+  protected processIntent(intent: ProductIntent): void {
+    switch (intent.type) {
+      case 'FETCH_PRODUCTS':
+        this.fetchProducts();
+        break;
+      case 'ADD_PRODUCT':
+        this.addProduct(intent.product);
+        break;
+      case 'UPDATE_PRODUCT':
+        this.updateProduct(intent.id, intent.updates);
+        break;
+      case 'REMOVE_PRODUCT':
+        this.removeProduct(intent.id);
+        break;
+      case 'UPDATE_STOCK':
+        this.updateStock(intent.id, intent.newStock);
+        break;
+      case 'BATCH_UPDATE_STOCK':
+        this.batchUpdateStock(intent.updates);
+        break;
+      case 'CONNECT_REALTIME':
+        this.connectToRealTimeUpdates();
+        break;
+      case 'DISCONNECT_REALTIME':
+        this.disconnect();
+        break;
+      default:
+        console.warn('Unknown intent type:', (intent as any).type);
+    }
+  }
+  
+  /**
    * Connect to Socket.io for real-time updates
    */
-  connectToRealTimeUpdates(): void {
+  private connectToRealTimeUpdates(): void {
     try {
       // In a real app, use the actual socket.io-client
       // import { io } from 'socket.io-client';
@@ -224,6 +271,46 @@ export class ProductViewModel extends ViewModel<Product[], ProductEvent> {
     
     // Emit event
     this.emitEvent(ProductEvent.STOCK_UPDATED);
+  }
+  
+  /**
+   * Batch update stock for multiple products at once
+   */
+  batchUpdateStock(updates: Array<{ id: number; newStock: number }>): void {
+    // Prepare batch updates for ListStateFlow
+    const batchUpdates = updates.map(({ id, newStock }) => {
+      // Determine status based on stock level
+      let status: 'available' | 'low-stock' | 'out-of-stock';
+      
+      if (newStock <= 0) {
+        status = 'out-of-stock';
+      } else if (newStock < 10) {
+        status = 'low-stock';
+      } else {
+        status = 'available';
+      }
+      
+      return {
+        id,
+        update: (product: Product) => ({
+          ...product,
+          stock: newStock,
+          status,
+          lastUpdated: new Date().toISOString()
+        })
+      };
+    });
+    
+    // Apply batch updates to ListStateFlow
+    this.productsListFlow.batchUpdate(batchUpdates);
+    
+    // In a real app, send to server
+    if (this.socket && this._connectionStatus === 'connected') {
+      this.socket.emit('batchUpdateStock', updates);
+    }
+    
+    // Emit event
+    this.emitEvent(ProductEvent.BATCH_UPDATED);
   }
 
   /**

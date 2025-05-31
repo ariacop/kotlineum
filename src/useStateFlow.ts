@@ -11,6 +11,7 @@ export interface StateFlow<T> {
   unsubscribe: (uniqueId: string) => void;
   update: (newValue: T) => void;
   getSubscriberCount: () => number;
+  dispose: () => void;
 }
 
 /**
@@ -43,6 +44,11 @@ export function StateFlow<T>(initialValue: T): StateFlow<T> {
     
     getSubscriberCount: () => {
       return subscribersRef.current.size;
+    },
+    
+    dispose: () => {
+      // Clear all subscribers
+      subscribersRef.current.clear();
     }
   };
   
@@ -79,6 +85,11 @@ export function useStateFlow<T>(initialValue: T): StateFlow<T> & [T, (newValue: 
     
     getSubscriberCount: () => {
       return subscribersRef.current.size;
+    },
+    
+    dispose: () => {
+      // Clear all subscribers
+      subscribersRef.current.clear();
     }
   };
   

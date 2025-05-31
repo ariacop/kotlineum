@@ -247,6 +247,10 @@ class StateFlowRegistry {
           }
         },
         
+        dispose: () => {
+          subscribers.clear();
+        },
+        
         getSubscriberCount: () => {
           return subscribers.size;
         }

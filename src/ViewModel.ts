@@ -4,10 +4,10 @@ import { SharedFlow } from './useSharedFlow';
 import { ViewModelState } from './types';
 
 /**
- * Base ViewModel class that provides state management and event handling
- * Similar to ViewModels in Kotlin Android development
+ * Base ViewModel class that provides state management, event handling, and intent processing
+ * Similar to ViewModels in Kotlin Android development with MVI pattern support
  */
-export abstract class ViewModel<TState, TEvent = any> {
+export abstract class ViewModel<TState, TEvent = any, TIntent = any> {
   protected stateFlow: StateFlow<ViewModelState<TState>>;
   protected eventsFlow: SharedFlow<TEvent>;
   private isDisposed = false;
@@ -22,6 +22,21 @@ export abstract class ViewModel<TState, TEvent = any> {
     
     this.eventsFlow = SharedFlow<TEvent>();
   }
+  
+  /**
+   * Process an intent and update state accordingly
+   * This method should be implemented by subclasses to handle different intents
+   * @param intent The intent to process
+   */
+  protected abstract processIntent(intent: TIntent): void;
+  
+  /**
+   * Dispatch an intent to be processed by the ViewModel
+   * @param intent The intent to dispatch
+   */
+  public dispatch(intent: TIntent): void {
+    this.processIntent(intent);
+  }
 
   /**
    * Get the current state
@@ -35,6 +50,22 @@ export abstract class ViewModel<TState, TEvent = any> {
    */
   getData(): TState | null {
     return this.stateFlow.getValue().data;
+  }
+  
+  /**
+   * Get the StateFlow instance
+   * This allows direct access to the underlying StateFlow
+   */
+  getStateFlow(): StateFlow<ViewModelState<TState>> {
+    return this.stateFlow;
+  }
+  
+  /**
+   * Get the SharedFlow instance for events
+   * This allows direct access to the underlying events flow
+   */
+  getEventsFlow(): SharedFlow<TEvent> {
+    return this.eventsFlow;
   }
 
   /**
