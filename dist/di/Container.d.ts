@@ -48,4 +48,10 @@ export declare class DIContainer {
      * Clear all dependencies from the container
      */
     clear(): void;
+    /**
+     * Resolve a dependency by token
+     * @param token The token of the dependency to resolve
+     * @returns The resolved dependency
+     */
+    resolve<T>(token: string): T;
 }

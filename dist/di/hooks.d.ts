@@ -1,4 +1,5 @@
 /// <reference types="react" />
+import { DIContainer } from './Container';
 /**
  * React hook for using a dependency from the DI container
  * @param token The token of the dependency to use
@@ -13,3 +14,8 @@ export declare function useDependency<T>(token: string): T;
  * @returns The created dependency
  */
 export declare function useProvider<T>(token: string, factory: () => T, deps?: React.DependencyList): T;
+/**
+ * React hook for accessing the DI container
+ * @returns The DI container instance
+ */
+export declare function useContainer(): DIContainer;

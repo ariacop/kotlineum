@@ -56,3 +56,12 @@ export function useProvider<T>(
 
   return instance;
 }
+
+
+/**
+ * React hook for accessing the DI container
+ * @returns The DI container instance
+ */
+export function useContainer(): DIContainer {
+  return DIContainer.getInstance();
+}

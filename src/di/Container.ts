@@ -99,4 +99,13 @@ export class DIContainer {
     this.factories.clear();
     this.singletons.clear();
   }
+  
+  /**
+   * Resolve a dependency by token
+   * @param token The token of the dependency to resolve
+   * @returns The resolved dependency
+   */
+  resolve<T>(token: string): T {
+    return this.get<T>(token);
+  }
 }
