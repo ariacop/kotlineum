@@ -26,8 +26,19 @@ yarn add kotlineum
 - 🏗️ **ViewModels**: MVVM architecture pattern implementation
 - ⚛️ **React Hooks**: Easy integration with React components
 
+### Current Features
+
+- 🔄 **StateFlow**: A state holder observable flow that emits the current and new state updates to its collectors
+- 📡 **SharedFlow**: A hot flow that emits values to all collectors
+- 🌐 **Global Flows**: Create application-wide flows accessible from any component
+- 💾 **Persistent State**: Automatically save and recover state with localStorage or IndexedDB
+- 💪 **Performance Optimized**: Debouncing, connection pooling, and memory leak prevention
+- 📂 **ListStateFlow**: Efficiently manage large lists with individual item updates
+- 🏗️ **ViewModels**: MVVM architecture pattern implementation
+- ⚛️ **React Hooks**: Easy integration with React components
+- 🔄 **Coroutines**: Kotlin-inspired asynchronous programming with Flow API
+
 ### Coming Soon
-- 🔄 **Coroutines**: Kotlin-inspired asynchronous programming
 - 📦 **Sealed Classes**: Type-safe unions with exhaustive pattern matching
 - 🧩 **Extension Functions**: Extend existing types with new functionality
 - 🛡️ **Data Classes**: Immutable data containers with built-in utility functions
@@ -568,6 +579,140 @@ const [user, setUser] = useStateFlow<User>({
 const [emitUser, subscribeToUser] = useSharedFlow<User>();
 ```
 
+## Coroutines
+
+Kotlineum provides a TypeScript implementation of Kotlin's coroutines for structured concurrency and asynchronous programming.
+
+### Basic Coroutine Usage
+
+```tsx
+import { CoroutineScope, launch, delay } from 'kotlineum';
+
+// Create a coroutine scope
+const scope = new CoroutineScope();
+
+// Launch a coroutine
+scope.launch(async () => {
+  console.log('Coroutine started');
+  await delay(1000); // Non-blocking delay
+  console.log('Coroutine completed after 1 second');
+});
+
+// Cancel all coroutines in the scope when no longer needed
+scope.cancel();
+```
+
+### Flow API
+
+Flow is a cold asynchronous data stream that sequentially emits values and completes normally or with an exception.
+
+```tsx
+import { flow, collect, map, filter } from 'kotlineum';
+
+// Create a flow
+const numbersFlow = flow(async (collector) => {
+  for (let i = 1; i <= 10; i++) {
+    await collector.emit(i);
+    await delay(100);
+  }
+});
+
+// Use flow operators
+const processedFlow = numbersFlow
+  .map(n => n * 2)        // Transform values
+  .filter(n => n > 10);   // Filter values
+
+// Collect flow values
+scope.launch(async () => {
+  await processedFlow.collect(value => {
+    console.log('Received value:', value);
+  });
+});
+```
+
+### Using Coroutines with React Components
+
+```tsx
+import React, { useEffect } from 'react';
+import { useCoroutineScope, flow, delay } from 'kotlineum';
+
+function CoroutineComponent() {
+  // Create a scope tied to component lifecycle
+  const scope = useCoroutineScope();
+  
+  useEffect(() => {
+    // Launch coroutines that will be automatically cancelled on unmount
+    scope.launch(async () => {
+      try {
+        const result = await fetchDataWithTimeout();
+        console.log('Data fetched:', result);
+      } catch (e) {
+        console.error('Error or timeout:', e);
+      }
+    });
+  }, [scope]);
+  
+  // Example of a function with timeout
+  async function fetchDataWithTimeout() {
+    return scope.withTimeout(2000, async () => {
+      // This will throw if it takes longer than 2 seconds
+      const response = await fetch('https://api.example.com/data');
+      return response.json();
+    });
+  }
+  
+  return <div>Check console for coroutine output</div>;
+}
+```
+
+### Combining ViewModel with Coroutines
+
+```tsx
+import { ViewModel, CoroutineScope, flow, collect } from 'kotlineum';
+
+export interface UserState {
+  users: User[];
+  selectedUserId: number | null;
+}
+
+export class UserViewModel extends ViewModel<UserState> {
+  private coroutineScope = new CoroutineScope();
+  
+  constructor() {
+    super({ users: [], selectedUserId: null });
+  }
+  
+  // Use coroutines for async operations
+  async fetchUsers() {
+    this.setLoading(true);
+    
+    try {
+      // Launch a coroutine that will update the state
+      this.coroutineScope.launch(async () => {
+        const response = await fetch('https://api.example.com/users');
+        const users = await response.json();
+        
+        this.updateData(state => ({
+          ...state,
+          users
+        }));
+        
+        this.setLoading(false);
+      });
+    } catch (error) {
+      this.setError('Failed to fetch users');
+      this.setLoading(false);
+    }
+  }
+  
+  // Clean up when ViewModel is disposed
+  override dispose() {
+    this.coroutineScope.cancel();
+    super.dispose();
+  }
+}
+```
+
 ## API Reference
 
 ### StateFlow
@@ -588,6 +733,49 @@ Factory function to create or get a global StateFlow object. Optionally configur
 
 #### `useSharedFlow<T>(): [(value: T) => void, (callback: Callback<T>) => () => void]`
 Creates a local SharedFlow.
+
+### Flow API
+
+#### `flow<T>(producer: FlowProducer<T>): Flow<T>`
+Creates a new Flow with the given producer function.
+
+#### `Flow<T>.collect(collector: (value: T) => void | Promise<void>): Promise<void>`
+Collects values from the flow and passes them to the collector function.
+
+#### `Flow<T>.map<R>(transform: (value: T) => R): Flow<R>`
+Transforms each value emitted by the flow using the transform function.
+
+#### `Flow<T>.filter(predicate: (value: T) => boolean): Flow<T>`
+Filters values emitted by the flow using the predicate function.
+
+#### `Flow<T>.take(count: number): Flow<T>`
+Limits the flow to emit only the first `count` values.
+
+#### `Flow<T>.flatMap<R>(transform: (value: T) => Flow<R>): Flow<R>`
+Transforms each value into a Flow and flattens the resulting Flows.
+
+#### `Flow<T>.flatMapConcat<R>(transform: (value: T) => Flow<R>): Flow<R>`
+Transforms each value into a Flow and concatenates the resulting Flows.
+
+#### `Flow<T>.flatMapMerge<R>(transform: (value: T) => Flow<R>, concurrency?: number): Flow<R>`
+Transforms each value into a Flow and merges the resulting Flows with optional concurrency limit.
+
+### Coroutine API
+
+#### `CoroutineScope.launch(block: () => Promise<void>): Job`
+Launches a new coroutine without blocking the current thread.
+
+#### `CoroutineScope.async<T>(block: () => Promise<T>): Deferred<T>`
+Creates a coroutine and returns its future result as a Deferred value.
+
+#### `CoroutineScope.withTimeout<T>(timeMillis: number, block: () => Promise<T>): Promise<T>`
+Runs a block with a specified timeout, throwing an exception if the timeout is exceeded.
+
+#### `delay(timeMillis: number): Promise<void>`
+Delays coroutine execution for the given time without blocking a thread.
+
+#### `useCoroutineScope(): CoroutineScope`
+React hook that creates a CoroutineScope tied to the component lifecycle.
 
 #### `useSharedFlowWithState<T>(initialState?: T): [T | undefined, (value: T) => void, (callback: Callback<T>) => () => void]`
 Creates a local SharedFlow that tracks the latest emitted value.
