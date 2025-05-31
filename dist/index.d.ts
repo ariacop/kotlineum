@@ -10,4 +10,5 @@ export * from './ViewModel';
 export * from './ViewModelProvider';
 export * from './useViewModel';
 export * from './Coroutines';
+export * from './di';
 export * from './Flow';

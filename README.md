@@ -26,6 +26,7 @@ yarn add kotlineum
 - 🏗️ **ViewModels**: MVVM architecture pattern implementation
 - ⚛️ **React Hooks**: Easy integration with React components
 - 🔄 **Coroutines**: Kotlin-inspired asynchronous programming with Flow API
+- 💉 **Dependency Injection**: Lightweight DI system with decorators and React integration
 
 ### Coming Soon
 - 📦 **Sealed Classes**: Type-safe unions with exhaustive pattern matching
@@ -765,6 +766,98 @@ Delays coroutine execution for the given time without blocking a thread.
 
 #### `useCoroutineScope(): CoroutineScope`
 React hook that creates a CoroutineScope tied to the component lifecycle.
+
+## Dependency Injection
+
+Kotlineum provides a lightweight Dependency Injection system inspired by Angular's DI system, with TypeScript decorators and React integration.
+
+### Basic Usage
+
+```tsx
+import { Injectable, Inject, inject } from 'kotlineum';
+
+// Define a service with @Injectable decorator
+@Injectable()
+class UserService {
+  getUser(id: number) {
+    return { id, name: 'John Doe' };
+  }
+}
+
+// Register the service
+const container = DIContainer.getInstance();
+container.registerFactory('userService', () => new UserService());
+
+// Use the service
+const userService = inject<UserService>('userService');
+const user = userService.getUser(1);
+```
+
+### Using Modules
+
+Modules help organize related dependencies:
+
+```tsx
+import { Module } from 'kotlineum';
+
+// Create a module
+const appModule = new Module({
+  providers: [
+    { provide: 'logger', useClass: ConsoleLogger },
+    { provide: 'userService', useClass: UserServiceImpl },
+    { provide: 'apiUrl', useValue: 'https://api.example.com' }
+  ]
+});
+
+// Register all providers in the module
+appModule.register();
+```
+
+### React Integration
+
+```tsx
+import { useDependency } from 'kotlineum';
+
+function UserProfile() {
+  // Get dependency from the container
+  const userService = useDependency<UserService>('userService');
+  const [user, setUser] = useState(null);
+  
+  useEffect(() => {
+    setUser(userService.getCurrentUser());
+  }, [userService]);
+  
+  return <div>{user?.name}</div>;
+}
+```
+
+### Combining with ViewModel
+
+```tsx
+import { ViewModel, Injectable, Inject } from 'kotlineum';
+
+@Injectable()
+class UserViewModel extends ViewModel<UserState> {
+  @Inject('userService')
+  private userService!: UserService;
+  
+  constructor() {
+    super(initialState);
+  }
+  
+  loadUser(id: number) {
+    this.setLoading(true);
+    try {
+      const user = this.userService.getUser(id);
+      this.updateData(state => ({ ...state, user }));
+    } catch (error) {
+      this.setError('Failed to load user');
+    } finally {
+      this.setLoading(false);
+    }
+  }
+}
+```
 
 #### `useSharedFlowWithState<T>(initialState?: T): [T | undefined, (value: T) => void, (callback: Callback<T>) => () => void]`
 Creates a local SharedFlow that tracks the latest emitted value.

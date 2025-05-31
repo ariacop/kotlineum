@@ -18,5 +18,8 @@ export * from './useViewModel';
 // Export Coroutines functionality
 export * from './Coroutines';
 
+// Export Dependency Injection functionality
+export * from './di';
+
 // Export Flow functionality
 export * from './Flow';
