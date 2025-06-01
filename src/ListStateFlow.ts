@@ -118,23 +118,34 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
 
   /**
    * Add a new item to the list
+   * If an item with the same ID already exists, only update subscribers without adding the item again
    */
   addItem(item: T): void {
     const id = String(item[this.idField]);
     
-    // Create a new flow for this item
-    const itemKey = `${this.key}_item_${id}`;
-    const itemFlow = GlobalStateFlow<T>(itemKey, item);
-    this.itemStateFlows.set(id, itemFlow);
-    
-    // Add to the main list
+    // Check if an item with this ID already exists
+    const existingItemFlow = this.itemStateFlows.get(id);
     const currentList = this.stateFlow.getValue();
-    this.stateFlow.update([...currentList, item]);
+    const itemExists = currentList.some(existingItem => String(existingItem[this.idField]) === id);
     
-    // Trigger all registered callbacks
-    this.itemAdditionCallbacks.forEach(callback => {
-      callback.onItemAdded(item);
-    });
+    if (existingItemFlow && itemExists) {
+      // Item with this ID already exists, don't add it again
+      // Just update the existing item flow with the new value
+      existingItemFlow.update(item);
+    } else {
+      // Create a new flow for this item
+      const itemKey = `${this.key}_item_${id}`;
+      const itemFlow = GlobalStateFlow<T>(itemKey, item);
+      this.itemStateFlows.set(id, itemFlow);
+      
+      // Add to the main list only if it doesn't already exist
+      this.stateFlow.update([...currentList, item]);
+      
+      // Trigger all registered callbacks
+      this.itemAdditionCallbacks.forEach(callback => {
+        callback.onItemAdded(item);
+      });
+    }
     
     // Check if there are any pending subscriptions for this item
     const pendingSubscriptions = this.pendingItemSubscriptions.get(id);
@@ -142,7 +153,7 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
     if (pendingSubscriptions) {
       // Activate all pending subscriptions
       pendingSubscriptions.forEach((callback, uniqueId) => {
-        // Get the item flow that was just created
+        // Get the item flow (either existing or just created)
         const itemFlow = this.itemStateFlows.get(id);
         if (itemFlow) {
           itemFlow.subscribe(uniqueId, callback);

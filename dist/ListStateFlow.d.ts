@@ -56,6 +56,7 @@ export declare class ListStateFlow<T extends Record<string | number | symbol, an
     updateItem(id: string | number, updater: (item: T) => T): void;
     /**
      * Add a new item to the list
+     * If an item with the same ID already exists, only update subscribers without adding the item again
      */
     addItem(item: T): void;
     /**
