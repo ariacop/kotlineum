@@ -9,6 +9,26 @@ export declare enum StorageType {
     INDEXED_DB = "indexedDB"
 }
 /**
+ * Event types for StateFlow
+ */
+export declare enum StateFlowEventType {
+    INITIAL_LOAD_COMPLETE = "INITIAL_LOAD_COMPLETE",
+    VALUE_UPDATED = "VALUE_UPDATED",
+    PERSISTED = "PERSISTED",
+    LOADED_FROM_STORAGE = "LOADED_FROM_STORAGE",
+    ERROR = "ERROR"
+}
+/**
+ * Event interface for StateFlow
+ */
+export interface StateFlowEvent<T> {
+    type: StateFlowEventType;
+    key: string;
+    value?: T;
+    timestamp: number;
+    error?: Error;
+}
+/**
  * Options for persistent StateFlow
  */
 export interface PersistOptions {
@@ -28,6 +48,8 @@ export interface PersistOptions {
     deserialize?: (value: string) => any;
     /** Debounce time in ms for saving to storage (default: 300) */
     debounceTime?: number;
+    /** Whether to emit events when values are updated or persisted */
+    emitEvents?: boolean;
 }
 /**
  * Get or create a global StateFlow instance

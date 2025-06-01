@@ -49,7 +49,7 @@ const AdvancedListStateFlowExample: React.FC = () => {
 
   // Add a log entry
   const addLogEntry = useCallback((entry: string) => {
-    setLogEntries(prev => [...prev, `${new Date().toLocaleTimeString()}: ${entry}`]);
+    setLogEntries(prev => [...prev, `${new Date().toLocaleTimeString()}: [Kotlineum] ${entry}`]);
   }, []);
   
   // Add an event log entry
@@ -63,7 +63,7 @@ const AdvancedListStateFlowExample: React.FC = () => {
       message += ` - Items: ${event.items.length} items loaded`;
     }
     
-    setEventLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
+    setEventLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: [Kotlineum] ${message}`]);
   }, []);
 
   // Subscribe to the entire list

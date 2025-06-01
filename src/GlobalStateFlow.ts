@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Callback } from './types';
 import { StateFlow } from './useStateFlow';
+import Logger from './logger';
 
 /**
  * Storage type for persistence
@@ -11,6 +12,28 @@ export enum StorageType {
   LOCAL_STORAGE = 'localStorage',
   /** Use IndexedDB */
   INDEXED_DB = 'indexedDB'
+}
+
+/**
+ * Event types for StateFlow
+ */
+export enum StateFlowEventType {
+  INITIAL_LOAD_COMPLETE = 'INITIAL_LOAD_COMPLETE',
+  VALUE_UPDATED = 'VALUE_UPDATED',
+  PERSISTED = 'PERSISTED',
+  LOADED_FROM_STORAGE = 'LOADED_FROM_STORAGE',
+  ERROR = 'ERROR'
+}
+
+/**
+ * Event interface for StateFlow
+ */
+export interface StateFlowEvent<T> {
+  type: StateFlowEventType;
+  key: string;
+  value?: T;
+  timestamp: number;
+  error?: Error;
 }
 
 /**
@@ -33,6 +56,8 @@ export interface PersistOptions {
   deserialize?: (value: string) => any;
   /** Debounce time in ms for saving to storage (default: 300) */
   debounceTime?: number;
+  /** Whether to emit events when values are updated or persisted */
+  emitEvents?: boolean;
 }
 
 /**
@@ -63,7 +88,10 @@ class IndexedDBUtil {
       const request = indexedDB.open(dbName, 1);
       
       request.onerror = (event) => {
-        reject(new Error(`IndexedDB error: ${(event.target as IDBRequest).error}`));
+        const error = new Error(`IndexedDB error: ${(event.target as IDBRequest).error}`);
+        Logger.error('Error saving to IndexedDB:', error);
+        Logger.error('IndexedDB error:', error);
+        reject(error);
       };
       
       request.onupgradeneeded = (event) => {
@@ -163,6 +191,8 @@ class StateFlowRegistry {
   private flows: Map<string, StateFlow<any>> = new Map();
   private persistOptions: Map<string, PersistOptions> = new Map();
   private debouncedSaveFunctions: Map<string, Function> = new Map();
+  private eventSubscribers: Map<string, Map<string, (event: StateFlowEvent<any>) => void>> = new Map();
+  private debounce = debounce;
 
   private constructor() {}
 
@@ -173,51 +203,119 @@ class StateFlowRegistry {
     return StateFlowRegistry.instance;
   }
 
+  /**
+   * Subscribe to events for a specific StateFlow
+   */
+  public subscribeToEvents<T>(key: string, uniqueId: string, callback: (event: StateFlowEvent<T>) => void): () => void {
+    if (!this.eventSubscribers.has(key)) {
+      this.eventSubscribers.set(key, new Map());
+    }
+    
+    const subscribers = this.eventSubscribers.get(key)!;
+    subscribers.set(uniqueId, callback as (event: StateFlowEvent<any>) => void);
+    
+    return () => {
+      const subscribers = this.eventSubscribers.get(key);
+      if (subscribers) {
+        subscribers.delete(uniqueId);
+        if (subscribers.size === 0) {
+          this.eventSubscribers.delete(key);
+        }
+      }
+    };
+  }
+  
+  /**
+   * Emit an event for a specific StateFlow
+   */
+  private emitEvent<T>(key: string, event: StateFlowEvent<T>): void {
+    const subscribers = this.eventSubscribers.get(key);
+    if (!subscribers) return;
+    
+    subscribers.forEach(callback => {
+      try {
+        callback(event);
+      } catch (e) {
+        Logger.error('Error in StateFlow event subscriber:', e);
+      }
+    });
+  }
+  
   public getOrCreate<T>(key: string, initialValue: T, persistOptions?: PersistOptions): StateFlow<T> {
     if (!this.flows.has(key)) {
       const subscribers = new Map<string, Callback<T>>();
       
-      // Set up persistence options with defaults
-      if (persistOptions?.enabled) {
-        const storageKey = persistOptions.storageKey || `kotlineum_state_${key}`;
-        const storageType = persistOptions.storageType || StorageType.LOCAL_STORAGE;
-        const dbName = persistOptions.dbName || 'kotlineum_db';
-        const storeName = persistOptions.storeName || 'kotlineum_store';
-        const debounceTime = persistOptions.debounceTime || 300;
-        
+      // Store persist options if provided
+      if (persistOptions) {
         this.persistOptions.set(key, {
-          storageKey,
-          enabled: true,
-          storageType,
-          dbName,
-          storeName,
-          debounceTime,
+          storageKey: persistOptions.storageKey || key,
+          enabled: persistOptions.enabled !== false,
+          storageType: persistOptions.storageType || StorageType.LOCAL_STORAGE,
+          dbName: persistOptions.dbName || 'kotlineum_state',
+          storeName: persistOptions.storeName || 'state_store',
           serialize: persistOptions.serialize || JSON.stringify,
-          deserialize: persistOptions.deserialize || JSON.parse
+          deserialize: persistOptions.deserialize || JSON.parse,
+          debounceTime: persistOptions.debounceTime || 300,
+          emitEvents: persistOptions.emitEvents !== false
         });
-        
-        // Create debounced save function for this key
-        this.debouncedSaveFunctions.set(
-          key,
-          debounce((value: T, options: PersistOptions) => this.saveToStorage(key, value, options), debounceTime)
-        );
+      }
+      
+      // Create a debounced save function if persistence is enabled
+      if (persistOptions && persistOptions.enabled !== false) {
+        const options = this.persistOptions.get(key)!;
+        const debouncedSave = this.debounce((value: T) => {
+          this.saveToStorage(key, value, options);
+          // Error handling is done inside saveToStorage
+          
+          // Emit event for persisted
+          if (options.emitEvents) {
+            this.emitEvent(key, {
+              type: StateFlowEventType.PERSISTED,
+              key: key,
+              value: value !== null && value !== undefined ? value as unknown as T : undefined,
+              timestamp: Date.now()
+            });
+          }
+        }, options.debounceTime || 300);
+        this.debouncedSaveFunctions.set(key, debouncedSave);
       }
       
       // Try to load initial value from storage if persistence is enabled
       let currentValue = initialValue;
       const options = this.persistOptions.get(key);
       
-      if (options?.enabled && typeof window !== 'undefined') {
-        this.loadFromStorage<T>(key, options).then(loadedValue => {
-          if (loadedValue !== undefined && this.flows.has(key)) {
+      // Load from storage if persistence is enabled
+      if (persistOptions && persistOptions.enabled !== false) {
+        this.loadFromStorage(key, this.persistOptions.get(key)!).then(loadedValue => {
+          if (loadedValue !== undefined && loadedValue !== null) {
             const flow = this.flows.get(key) as StateFlow<T>;
-            flow.update(loadedValue);
+            flow.update(loadedValue as unknown as T);
+            
+            // Emit event for loaded from storage
+            const options = this.persistOptions.get(key);
+            if (options && options.emitEvents) {
+              this.emitEvent(key, {
+                type: StateFlowEventType.LOADED_FROM_STORAGE,
+                key: key,
+                value: loadedValue as unknown as T,
+                timestamp: Date.now()
+              });
+            }
           }
-        }).catch(error => {
-          console.warn(`Failed to load state from storage for key ${key}:`, error);
+          
+          // Emit event that initial loading is complete
+          const options = this.persistOptions.get(key);
+          if (options && options.emitEvents) {
+            this.emitEvent(key, {
+              type: StateFlowEventType.INITIAL_LOAD_COMPLETE,
+              key: key,
+              value: currentValue,
+              timestamp: Date.now()
+            });
+          }
         });
       }
-
+      
       const stateFlow: StateFlow<T> = {
         getValue: () => currentValue,
         
@@ -242,7 +340,7 @@ class StateFlowRegistry {
             // Use debounced save function for better performance
             const debouncedSave = StateFlowRegistry.getInstance().debouncedSaveFunctions.get(key);
             if (debouncedSave) {
-              debouncedSave(newValue, options);
+              debouncedSave(newValue);
             }
           }
         },
@@ -299,9 +397,9 @@ class StateFlowRegistry {
     try {
       if (options.storageType === StorageType.INDEXED_DB) {
         // Load from IndexedDB
-        const value = await IndexedDBUtil.getValue(options.dbName!, options.storeName!, options.storageKey!);
+        const value = await IndexedDBUtil.getValue(options.dbName || 'kotlineum_state', options.storeName || 'state_store', options.storageKey || key);
         if (value) {
-          return options.deserialize!(value);
+          return options.deserialize ? options.deserialize(value) as T : value as unknown as T;
         }
       } else {
         // Load from localStorage (default)

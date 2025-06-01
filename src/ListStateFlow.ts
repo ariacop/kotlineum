@@ -2,6 +2,7 @@
 import { Callback } from './types';
 import { StateFlow } from './useStateFlow';
 import { GlobalStateFlow, PersistOptions, StorageType } from './GlobalStateFlow';
+import Logger from './logger';
 
 /**
  * Event types for ListStateFlow
@@ -513,7 +514,7 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
       try {
         callback(event);
       } catch (e) {
-        console.error('Error in event subscriber:', e);
+        Logger.error('Error in event subscriber:', e);
       }
     });
   }
