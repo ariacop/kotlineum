@@ -2,6 +2,12 @@ import { Callback } from './types';
 import { StateFlow } from './useStateFlow';
 import { PersistOptions } from './GlobalStateFlow';
 /**
+ * Interface for item addition callbacks
+ */
+export interface ItemAdditionCallback<T> {
+    onItemAdded: (item: T) => void;
+}
+/**
  * Options for ListStateFlow
  */
 export interface ListStateFlowOptions<T> {
@@ -19,6 +25,8 @@ export declare class ListStateFlow<T extends Record<string | number | symbol, an
     private stateFlow;
     private idField;
     private itemStateFlows;
+    private pendingItemSubscriptions;
+    private itemAdditionCallbacks;
     /**
      * Create a new ListStateFlow
      * @param key Unique identifier for this flow
@@ -51,6 +59,13 @@ export declare class ListStateFlow<T extends Record<string | number | symbol, an
      */
     addItem(item: T): void;
     /**
+     * Add a new item to the list with callback notification
+     * @param item The item to add
+     * @param callbackId Optional ID for the callback
+     * @param callback Optional callback to execute when the item is added
+     */
+    addItemWithCallback(item: T, callbackId?: string, callback?: ItemAdditionCallback<T>): void;
+    /**
      * Remove an item from the list
      */
     removeItem(id: string | number): void;
@@ -62,6 +77,21 @@ export declare class ListStateFlow<T extends Record<string | number | symbol, an
      * Subscribe to changes in a specific item
      */
     subscribeToItem(id: string | number, uniqueId: string, callback: Callback<T>): () => void;
+    /**
+     * Pre-register a subscription for an item that doesn't exist yet
+     * @param id The ID of the item to subscribe to
+     * @param uniqueId Unique identifier for the subscription
+     * @param callback Function to call when the item is updated
+     * @returns Function to unsubscribe
+     */
+    preSubscribeToItem(id: string | number, uniqueId: string, callback: Callback<T>): () => void;
+    /**
+     * Register a callback for when any item is added to the list
+     * @param callbackId Unique identifier for the callback
+     * @param callback Function to call when an item is added
+     * @returns Function to unregister the callback
+     */
+    onItemAdded(callbackId: string, callback: ItemAdditionCallback<T>): () => void;
     /**
      * Batch update multiple items at once
      */

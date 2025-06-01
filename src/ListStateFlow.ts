@@ -4,6 +4,13 @@ import { StateFlow } from './useStateFlow';
 import { GlobalStateFlow, PersistOptions, StorageType } from './GlobalStateFlow';
 
 /**
+ * Interface for item addition callbacks
+ */
+export interface ItemAdditionCallback<T> {
+  onItemAdded: (item: T) => void;
+}
+
+/**
  * Options for ListStateFlow
  */
 export interface ListStateFlowOptions<T> {
@@ -21,6 +28,8 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
   private stateFlow: StateFlow<T[]>;
   private idField: keyof T;
   private itemStateFlows: Map<string | number, StateFlow<T>> = new Map();
+  private pendingItemSubscriptions: Map<string | number, Map<string, Callback<T>>> = new Map();
+  private itemAdditionCallbacks: Map<string, ItemAdditionCallback<T>> = new Map();
 
   /**
    * Create a new ListStateFlow
@@ -121,6 +130,45 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
     // Add to the main list
     const currentList = this.stateFlow.getValue();
     this.stateFlow.update([...currentList, item]);
+    
+    // Trigger all registered callbacks
+    this.itemAdditionCallbacks.forEach(callback => {
+      callback.onItemAdded(item);
+    });
+    
+    // Check if there are any pending subscriptions for this item
+    const pendingSubscriptions = this.pendingItemSubscriptions.get(id);
+    
+    if (pendingSubscriptions) {
+      // Activate all pending subscriptions
+      pendingSubscriptions.forEach((callback, uniqueId) => {
+        this.subscribeToItem(id, uniqueId, callback);
+      });
+      
+      // Clear the pending subscriptions for this item
+      this.pendingItemSubscriptions.delete(id);
+    }
+  }
+  
+  /**
+   * Add a new item to the list with callback notification
+   * @param item The item to add
+   * @param callbackId Optional ID for the callback
+   * @param callback Optional callback to execute when the item is added
+   */
+  addItemWithCallback(
+    item: T, 
+    callbackId?: string, 
+    callback?: ItemAdditionCallback<T>
+  ): void {
+    // Add the item using the standard method
+    this.addItem(item);
+    
+    // Execute the provided callback if any
+    if (callbackId && callback) {
+      this.itemAdditionCallbacks.set(callbackId, callback);
+      callback.onItemAdded(item);
+    }
   }
 
   /**
@@ -161,6 +209,65 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
     
     // Return a no-op unsubscribe function if item doesn't exist
     return () => {};
+  }
+  
+  /**
+   * Pre-register a subscription for an item that doesn't exist yet
+   * @param id The ID of the item to subscribe to
+   * @param uniqueId Unique identifier for the subscription
+   * @param callback Function to call when the item is updated
+   * @returns Function to unsubscribe
+   */
+  preSubscribeToItem(
+    id: string | number, 
+    uniqueId: string, 
+    callback: Callback<T>
+  ): () => void {
+    const stringId = String(id);
+    
+    // Check if the item already exists
+    const item = this.getItem(stringId);
+    if (item) {
+      // Item exists, subscribe normally
+      return this.subscribeToItem(stringId, uniqueId, callback);
+    }
+    
+    // Item doesn't exist yet, store the subscription for later
+    if (!this.pendingItemSubscriptions.has(stringId)) {
+      this.pendingItemSubscriptions.set(stringId, new Map());
+    }
+    
+    const pendingSubscriptions = this.pendingItemSubscriptions.get(stringId)!;
+    pendingSubscriptions.set(uniqueId, callback);
+    
+    // Return a function to unsubscribe
+    return () => {
+      const subscriptions = this.pendingItemSubscriptions.get(stringId);
+      if (subscriptions) {
+        subscriptions.delete(uniqueId);
+        if (subscriptions.size === 0) {
+          this.pendingItemSubscriptions.delete(stringId);
+        }
+      }
+    };
+  }
+  
+  /**
+   * Register a callback for when any item is added to the list
+   * @param callbackId Unique identifier for the callback
+   * @param callback Function to call when an item is added
+   * @returns Function to unregister the callback
+   */
+  onItemAdded(
+    callbackId: string, 
+    callback: ItemAdditionCallback<T>
+  ): () => void {
+    this.itemAdditionCallbacks.set(callbackId, callback);
+    
+    // Return a function to unregister the callback
+    return () => {
+      this.itemAdditionCallbacks.delete(callbackId);
+    };
   }
 
   /**
@@ -332,8 +439,10 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
       flow.dispose();
     });
     
-    // Clear the map
+    // Clear the maps
     this.itemStateFlows.clear();
+    this.pendingItemSubscriptions.clear();
+    this.itemAdditionCallbacks.clear();
     
     // Dispose the main flow
     this.stateFlow.dispose();
