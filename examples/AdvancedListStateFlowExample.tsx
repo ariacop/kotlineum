@@ -1,5 +1,6 @@
 // AdvancedListStateFlowExample.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { ListStateFlow, ListStateFlowEvent, ListStateFlowEventType } from '../src/ListStateFlow';
 import { GlobalListStateFlow } from '../src/GlobalListStateFlow';
 import './AdvancedListStateFlowExample.css';
 
@@ -41,14 +42,30 @@ const AdvancedListStateFlowExample: React.FC = () => {
   // State for pre-subscription status
   const [preSubscriptionActive, setPreSubscriptionActive] = useState<boolean>(false);
   
-  // State for subscription log
-  const [subscriptionLog, setSubscriptionLog] = useState<string[]>([]);
-  
-  // Add log entry
+  // Log entries for subscriptions and updates
+  const [logEntries, setLogEntries] = useState<string[]>([]);
+  const logRef = useRef<HTMLDivElement>(null);
+  const [eventLogs, setEventLogs] = useState<string[]>([]);
+
+  // Add a log entry
   const addLogEntry = useCallback((entry: string) => {
-    setSubscriptionLog(prev => [...prev, `${new Date().toLocaleTimeString()}: ${entry}`]);
+    setLogEntries(prev => [...prev, `${new Date().toLocaleTimeString()}: ${entry}`]);
   }, []);
   
+  // Add an event log entry
+  const addEventLog = useCallback((event: ListStateFlowEvent<Product>) => {
+    const eventType = event.type;
+    let message = `Event: ${eventType}`;
+    
+    if (event.item) {
+      message += ` - Item: ${event.item.id} (${event.item.name})`;
+    } else if (event.items) {
+      message += ` - Items: ${event.items.length} items loaded`;
+    }
+    
+    setEventLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
+  }, []);
+
   // Subscribe to the entire list
   useEffect(() => {
     const unsubscribe = productsFlow.subscribeToList('example-component', (updatedProducts) => {
@@ -63,11 +80,17 @@ const AdvancedListStateFlowExample: React.FC = () => {
       }
     });
     
+    // Register a callback for all events
+    const unregisterEventsCallback = productsFlow.subscribeToEvents('global-events-callback', (event) => {
+      addEventLog(event);
+    });
+    
     return () => {
       unsubscribe();
       unregisterCallback();
+      unregisterEventsCallback();
     };
-  }, [addLogEntry]);
+  }, [addLogEntry, addEventLog]);
   
   // Handle product selection
   const handleSelectProduct = (id: number) => {
@@ -281,12 +304,22 @@ const AdvancedListStateFlowExample: React.FC = () => {
         
         <div className="subscription-log">
           <h3>Subscription Log</h3>
-          <div className="log-entries">
-            {subscriptionLog.map((entry, index) => (
+          <div className="log-entries" ref={logRef}>
+            {logEntries.map((entry, index) => (
               <div key={index} className="log-entry">{entry}</div>
             ))}
           </div>
-          <button onClick={() => setSubscriptionLog([])}>Clear Log</button>
+          <button onClick={() => setLogEntries([])}>Clear Log</button>
+        </div>
+        
+        <div className="subscription-log">
+          <h3>Event Log</h3>
+          <div className="log-entries">
+            {eventLogs.map((entry, index) => (
+              <div key={index} className="log-entry event-log-entry">{entry}</div>
+            ))}
+          </div>
+          <button onClick={() => setEventLogs([])}>Clear Event Log</button>
         </div>
       </div>
     </div>

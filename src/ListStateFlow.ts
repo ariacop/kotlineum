@@ -4,6 +4,27 @@ import { StateFlow } from './useStateFlow';
 import { GlobalStateFlow, PersistOptions, StorageType } from './GlobalStateFlow';
 
 /**
+ * Event types for ListStateFlow
+ */
+export enum ListStateFlowEventType {
+  INITIAL_LOAD_COMPLETE = 'INITIAL_LOAD_COMPLETE',
+  ITEM_ADDED = 'ITEM_ADDED',
+  ITEM_UPDATED = 'ITEM_UPDATED',
+  ITEM_REMOVED = 'ITEM_REMOVED'
+}
+
+/**
+ * Event interface for ListStateFlow
+ */
+export interface ListStateFlowEvent<T> {
+  type: ListStateFlowEventType;
+  data?: any;
+  item?: T;
+  items?: T[];
+  timestamp: number;
+}
+
+/**
  * Interface for item addition callbacks
  */
 export interface ItemAdditionCallback<T> {
@@ -18,6 +39,11 @@ export interface ListStateFlowOptions<T> {
   idField?: keyof T;
   /** Persistence options */
   persistOptions?: PersistOptions;
+  /**
+   * Whether to emit events when items are added, updated, or removed
+   * @default true
+   */
+  emitEvents?: boolean;
 }
 
 /**
@@ -30,6 +56,9 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
   private itemStateFlows: Map<string | number, StateFlow<T>> = new Map();
   private pendingItemSubscriptions: Map<string | number, Map<string, Callback<T>>> = new Map();
   private itemAdditionCallbacks: Map<string, ItemAdditionCallback<T>> = new Map();
+  private eventSubscribers: Map<string, (event: ListStateFlowEvent<T>) => void> = new Map();
+  private key: string;
+  private emitEvents: boolean;
 
   /**
    * Create a new ListStateFlow
@@ -38,17 +67,28 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
    * @param options Configuration options
    */
   constructor(
-    private key: string,
+    key: string,
     initialItems: T[] = [],
     options: ListStateFlowOptions<T> = {}
   ) {
+    this.key = key;
     this.idField = options.idField || 'id' as keyof T;
+    this.emitEvents = options.emitEvents !== undefined ? options.emitEvents : true;
     
     // Create the main state flow for the entire list
     this.stateFlow = GlobalStateFlow<T[]>(key, initialItems, options.persistOptions);
     
     // Create individual state flows for each item
     this.initializeItemFlows(initialItems);
+    
+    // Emit event that initial loading is complete
+    if (this.emitEvents) {
+      this.emitEvent({
+        type: ListStateFlowEventType.INITIAL_LOAD_COMPLETE,
+        items: initialItems,
+        timestamp: Date.now()
+      });
+    }
   }
 
   /**
@@ -132,6 +172,15 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
       // Item with this ID already exists, don't add it again
       // Just update the existing item flow with the new value
       existingItemFlow.update(item);
+      
+      // Emit item updated event
+      if (this.emitEvents) {
+        this.emitEvent({
+          type: ListStateFlowEventType.ITEM_UPDATED,
+          item: item,
+          timestamp: Date.now()
+        });
+      }
     } else {
       // Create a new flow for this item
       const itemKey = `${this.key}_item_${id}`;
@@ -145,6 +194,15 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
       this.itemAdditionCallbacks.forEach(callback => {
         callback.onItemAdded(item);
       });
+      
+      // Emit item added event
+      if (this.emitEvents) {
+        this.emitEvent({
+          type: ListStateFlowEventType.ITEM_ADDED,
+          item: item,
+          timestamp: Date.now()
+        });
+      }
     }
     
     // Check if there are any pending subscriptions for this item
@@ -195,13 +253,19 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
     // Remove from item flows
     this.itemStateFlows.delete(stringId);
     
-    // Remove from the main list
+    // Remove the item from the list
     const currentList = this.stateFlow.getValue();
-    const updatedList = currentList.filter(item => 
-      String(item[this.idField]) !== stringId
-    );
+    const removedItem = currentList.find(item => String(item[this.idField]) === id);
+    this.stateFlow.update(currentList.filter(item => String(item[this.idField]) !== id));
     
-    this.stateFlow.update(updatedList);
+    // Emit item removed event
+    if (this.emitEvents && removedItem) {
+      this.emitEvent({
+        type: ListStateFlowEventType.ITEM_REMOVED,
+        item: removedItem,
+        timestamp: Date.now()
+      });
+    }
   }
 
   /**
@@ -427,18 +491,45 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
   }
 
   /**
-   * Clean up resources
+   * Subscribe to events from this ListStateFlow
+   * @param uniqueId Unique identifier for the subscription
+   * @param callback Function to call when an event occurs
+   * @returns Function to unsubscribe
+   */
+  subscribeToEvents(uniqueId: string, callback: (event: ListStateFlowEvent<T>) => void): () => void {
+    this.eventSubscribers.set(uniqueId, callback);
+    
+    return () => {
+      this.eventSubscribers.delete(uniqueId);
+    };
+  }
+  
+  /**
+   * Emit an event to all subscribers
+   * @param event The event to emit
+   */
+  private emitEvent(event: ListStateFlowEvent<T>): void {
+    this.eventSubscribers.forEach(callback => {
+      try {
+        callback(event);
+      } catch (e) {
+        console.error('Error in event subscriber:', e);
+      }
+    });
+  }
+  
+  /**
+   * Dispose this flow and all item flows
    */
   dispose(): void {
-    // Unsubscribe from all item flows
-    this.itemStateFlows.forEach(flow => {
-      flow.dispose();
-    });
+    // Dispose all item flows
+    this.itemStateFlows.forEach(flow => flow.dispose());
     
     // Clear the maps
     this.itemStateFlows.clear();
     this.pendingItemSubscriptions.clear();
     this.itemAdditionCallbacks.clear();
+    this.eventSubscribers.clear();
     
     // Dispose the main flow
     this.stateFlow.dispose();

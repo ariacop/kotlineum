@@ -2,6 +2,25 @@ import { Callback } from './types';
 import { StateFlow } from './useStateFlow';
 import { PersistOptions } from './GlobalStateFlow';
 /**
+ * Event types for ListStateFlow
+ */
+export declare enum ListStateFlowEventType {
+    INITIAL_LOAD_COMPLETE = "INITIAL_LOAD_COMPLETE",
+    ITEM_ADDED = "ITEM_ADDED",
+    ITEM_UPDATED = "ITEM_UPDATED",
+    ITEM_REMOVED = "ITEM_REMOVED"
+}
+/**
+ * Event interface for ListStateFlow
+ */
+export interface ListStateFlowEvent<T> {
+    type: ListStateFlowEventType;
+    data?: any;
+    item?: T;
+    items?: T[];
+    timestamp: number;
+}
+/**
  * Interface for item addition callbacks
  */
 export interface ItemAdditionCallback<T> {
@@ -15,18 +34,25 @@ export interface ListStateFlowOptions<T> {
     idField?: keyof T;
     /** Persistence options */
     persistOptions?: PersistOptions;
+    /**
+     * Whether to emit events when items are added, updated, or removed
+     * @default true
+     */
+    emitEvents?: boolean;
 }
 /**
  * ListStateFlow for efficiently managing large lists with individual item updates
  * Enhanced with stream-like operations similar to Kotlin's Flow
  */
 export declare class ListStateFlow<T extends Record<string | number | symbol, any>> {
-    private key;
     private stateFlow;
     private idField;
     private itemStateFlows;
     private pendingItemSubscriptions;
     private itemAdditionCallbacks;
+    private eventSubscribers;
+    private key;
+    private emitEvents;
     /**
      * Create a new ListStateFlow
      * @param key Unique identifier for this flow
@@ -176,7 +202,19 @@ export declare class ListStateFlow<T extends Record<string | number | symbol, an
      */
     getStateFlow(): StateFlow<T[]>;
     /**
-     * Clean up resources
+     * Subscribe to events from this ListStateFlow
+     * @param uniqueId Unique identifier for the subscription
+     * @param callback Function to call when an event occurs
+     * @returns Function to unsubscribe
+     */
+    subscribeToEvents(uniqueId: string, callback: (event: ListStateFlowEvent<T>) => void): () => void;
+    /**
+     * Emit an event to all subscribers
+     * @param event The event to emit
+     */
+    private emitEvent;
+    /**
+     * Dispose this flow and all item flows
      */
     dispose(): void;
 }
