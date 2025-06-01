@@ -75,16 +75,13 @@ export declare class ListStateFlow<T extends Record<string | number | symbol, an
     subscribeToList(uniqueId: string, callback: Callback<T[]>): () => void;
     /**
      * Subscribe to changes in a specific item
-     */
-    subscribeToItem(id: string | number, uniqueId: string, callback: Callback<T>): () => void;
-    /**
-     * Pre-register a subscription for an item that doesn't exist yet
+     * If the item doesn't exist yet, it will automatically pre-register the subscription
      * @param id The ID of the item to subscribe to
      * @param uniqueId Unique identifier for the subscription
      * @param callback Function to call when the item is updated
      * @returns Function to unsubscribe
      */
-    preSubscribeToItem(id: string | number, uniqueId: string, callback: Callback<T>): () => void;
+    subscribeToItem(id: string | number, uniqueId: string, callback: Callback<T>): () => void;
     /**
      * Register a callback for when any item is added to the list
      * @param callbackId Unique identifier for the callback

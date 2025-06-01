@@ -142,7 +142,11 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
     if (pendingSubscriptions) {
       // Activate all pending subscriptions
       pendingSubscriptions.forEach((callback, uniqueId) => {
-        this.subscribeToItem(id, uniqueId, callback);
+        // Get the item flow that was just created
+        const itemFlow = this.itemStateFlows.get(id);
+        if (itemFlow) {
+          itemFlow.subscribe(uniqueId, callback);
+        }
       });
       
       // Clear the pending subscriptions for this item
@@ -198,38 +202,19 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
 
   /**
    * Subscribe to changes in a specific item
+   * If the item doesn't exist yet, it will automatically pre-register the subscription
+   * @param id The ID of the item to subscribe to
+   * @param uniqueId Unique identifier for the subscription
+   * @param callback Function to call when the item is updated
+   * @returns Function to unsubscribe
    */
   subscribeToItem(id: string | number, uniqueId: string, callback: Callback<T>): () => void {
     const stringId = String(id);
     const itemFlow = this.itemStateFlows.get(stringId);
     
     if (itemFlow) {
-      return itemFlow.subscribe(uniqueId, callback);
-    }
-    
-    // Return a no-op unsubscribe function if item doesn't exist
-    return () => {};
-  }
-  
-  /**
-   * Pre-register a subscription for an item that doesn't exist yet
-   * @param id The ID of the item to subscribe to
-   * @param uniqueId Unique identifier for the subscription
-   * @param callback Function to call when the item is updated
-   * @returns Function to unsubscribe
-   */
-  preSubscribeToItem(
-    id: string | number, 
-    uniqueId: string, 
-    callback: Callback<T>
-  ): () => void {
-    const stringId = String(id);
-    
-    // Check if the item already exists
-    const item = this.getItem(stringId);
-    if (item) {
       // Item exists, subscribe normally
-      return this.subscribeToItem(stringId, uniqueId, callback);
+      return itemFlow.subscribe(uniqueId, callback);
     }
     
     // Item doesn't exist yet, store the subscription for later

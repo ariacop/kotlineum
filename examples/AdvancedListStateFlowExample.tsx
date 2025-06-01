@@ -101,8 +101,8 @@ const AdvancedListStateFlowExample: React.FC = () => {
       return;
     }
     
-    // Pre-subscribe to a product that doesn't exist yet
-    const unsubscribe = productsFlow.preSubscribeToItem(
+    // Subscribe to a product that doesn't exist yet (pre-subscription)
+    const unsubscribe = productsFlow.subscribeToItem(
       preSubscribeId,
       `pre-subscribe-${preSubscribeId}`,
       (product) => {
