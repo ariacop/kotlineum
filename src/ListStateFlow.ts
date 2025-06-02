@@ -344,7 +344,9 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
     Logger.debug(`[Kotlineum] ListStateFlow.addItems: Adding ${items.length} items`);
     
     const currentList = this.stateFlow.getValue();
-    let updatedList = [...currentList];
+    // Create a new list instead of modifying the existing one
+    // This prevents duplicate items from being added
+    let newList = [...currentList];
     const addedItems: T[] = [];
     const updatedItems: T[] = [];
     
@@ -352,27 +354,34 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
     items.forEach(item => {
       const id = String(item[this.idField]);
       
-      // Check if an item with this ID already exists
+      // Check if an item with this ID already exists in the current list
+      const existingIndex = newList.findIndex(existingItem => 
+        String(existingItem[this.idField]) === id
+      );
       const existingItemFlow = this.itemStateFlows.get(id);
-      const itemExists = currentList.some(existingItem => String(existingItem[this.idField]) === id);
       
-      if (existingItemFlow && itemExists) {
+      if (existingIndex >= 0) {
         // Item with this ID already exists, update it
-        existingItemFlow.update(item);
-        updatedItems.push(item);
+        if (existingItemFlow) {
+          existingItemFlow.update(item);
+        } else {
+          // Create a flow if it doesn't exist (shouldn't happen normally)
+          const itemKey = `${this.key}_item_${id}`;
+          const itemFlow = GlobalStateFlow<T>(itemKey, item);
+          this.itemStateFlows.set(id, itemFlow);
+        }
         
-        // Update in our temporary list
-        updatedList = updatedList.map(existingItem => 
-          String(existingItem[this.idField]) === id ? item : existingItem
-        );
+        // Update the item in our new list
+        newList[existingIndex] = item;
+        updatedItems.push(item);
       } else {
         // Create a new flow for this item
         const itemKey = `${this.key}_item_${id}`;
         const itemFlow = GlobalStateFlow<T>(itemKey, item);
         this.itemStateFlows.set(id, itemFlow);
         
-        // Add to our temporary list
-        updatedList.push(item);
+        // Add to our new list
+        newList.push(item);
         addedItems.push(item);
         
         // Check if there are any pending subscriptions for this item
@@ -391,7 +400,7 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
     });
     
     // Update the main list flow once with all changes
-    this.stateFlow.update(updatedList);
+    this.stateFlow.update(newList);
     
     // Trigger callbacks and emit events
     if (addedItems.length > 0) {
@@ -433,17 +442,14 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
     callbackId?: string, 
     callback?: ItemAdditionCallback<T>
   ): void {
-    // Add the items using the standard method
-    this.addItems(items);
-    
-    // Execute the provided callback if any
+    // Register the callback first if provided
     if (callbackId && callback) {
       this.itemAdditionCallbacks.set(callbackId, callback);
-      // Notify about each item
-      items.forEach(item => {
-        callback.onItemAdded(item);
-      });
     }
+    
+    // Add the items using the standard method
+    // The callback will be triggered automatically in addItems for new items
+    this.addItems(items);
   }
 
   /**
