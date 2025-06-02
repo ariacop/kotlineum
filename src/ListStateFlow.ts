@@ -120,8 +120,27 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
    */
   getItem(id: string | number): T | undefined {
     const stringId = String(id);
+    
+    // First try to get from the item flows
     const itemFlow = this.itemStateFlows.get(stringId);
-    return itemFlow ? itemFlow.getValue() : undefined;
+    if (itemFlow) {
+      return itemFlow.getValue();
+    }
+    
+    // If not found in item flows, check the main list
+    const currentList = this.stateFlow.getValue();
+    const item = currentList.find(item => String(item[this.idField]) === stringId);
+    
+    if (item) {
+      // If found in the main list but not in flows, create a flow for it
+      Logger.debug(`[Kotlineum] ListStateFlow.getItem: Creating missing flow for item ${stringId}`);
+      const itemKey = `${this.key}_item_${stringId}`;
+      const newItemFlow = GlobalStateFlow<T>(itemKey, item);
+      this.itemStateFlows.set(stringId, newItemFlow);
+      return item;
+    }
+    
+    return undefined;
   }
 
   /**
