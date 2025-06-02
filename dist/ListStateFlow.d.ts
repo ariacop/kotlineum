@@ -117,6 +117,18 @@ export declare class ListStateFlow<T extends Record<string | number | symbol, an
      */
     onItemAdded(callbackId: string, callback: ItemAdditionCallback<T>): () => void;
     /**
+     * Add multiple items to the list at once
+     * @param items Array of items to add
+     */
+    addItems(items: T[]): void;
+    /**
+     * Add multiple items to the list with callback notification
+     * @param items Array of items to add
+     * @param callbackId Optional ID for the callback
+     * @param callback Optional callback to execute when items are added
+     */
+    addItemsWithCallback(items: T[], callbackId?: string, callback?: ItemAdditionCallback<T>): void;
+    /**
      * Batch update multiple items at once
      */
     batchUpdate(updates: {

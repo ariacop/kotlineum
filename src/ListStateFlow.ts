@@ -332,6 +332,121 @@ export class ListStateFlow<T extends Record<string | number | symbol, any>> {
   }
 
   /**
+   * Add multiple items to the list at once
+   * @param items Array of items to add
+   */
+  addItems(items: T[]): void {
+    if (!items || items.length === 0) {
+      Logger.debug(`[Kotlineum] ListStateFlow.addItems: No items to add`);
+      return;
+    }
+
+    Logger.debug(`[Kotlineum] ListStateFlow.addItems: Adding ${items.length} items`);
+    
+    const currentList = this.stateFlow.getValue();
+    let updatedList = [...currentList];
+    const addedItems: T[] = [];
+    const updatedItems: T[] = [];
+    
+    // Process each item
+    items.forEach(item => {
+      const id = String(item[this.idField]);
+      
+      // Check if an item with this ID already exists
+      const existingItemFlow = this.itemStateFlows.get(id);
+      const itemExists = currentList.some(existingItem => String(existingItem[this.idField]) === id);
+      
+      if (existingItemFlow && itemExists) {
+        // Item with this ID already exists, update it
+        existingItemFlow.update(item);
+        updatedItems.push(item);
+        
+        // Update in our temporary list
+        updatedList = updatedList.map(existingItem => 
+          String(existingItem[this.idField]) === id ? item : existingItem
+        );
+      } else {
+        // Create a new flow for this item
+        const itemKey = `${this.key}_item_${id}`;
+        const itemFlow = GlobalStateFlow<T>(itemKey, item);
+        this.itemStateFlows.set(id, itemFlow);
+        
+        // Add to our temporary list
+        updatedList.push(item);
+        addedItems.push(item);
+        
+        // Check if there are any pending subscriptions for this item
+        const pendingSubscriptions = this.pendingItemSubscriptions.get(id);
+        
+        if (pendingSubscriptions) {
+          // Activate all pending subscriptions
+          pendingSubscriptions.forEach((callback, uniqueId) => {
+            itemFlow.subscribe(uniqueId, callback);
+          });
+          
+          // Clear the pending subscriptions for this item
+          this.pendingItemSubscriptions.delete(id);
+        }
+      }
+    });
+    
+    // Update the main list flow once with all changes
+    this.stateFlow.update(updatedList);
+    
+    // Trigger callbacks and emit events
+    if (addedItems.length > 0) {
+      // Trigger all registered callbacks for added items
+      addedItems.forEach(item => {
+        this.itemAdditionCallbacks.forEach(callback => {
+          callback.onItemAdded(item);
+        });
+      });
+      
+      // Emit items added event
+      if (this.emitEvents) {
+        this.emitEvent({
+          type: ListStateFlowEventType.ITEM_ADDED,
+          items: addedItems,
+          timestamp: Date.now()
+        });
+      }
+    }
+    
+    // Emit items updated event if any items were updated
+    if (updatedItems.length > 0 && this.emitEvents) {
+      this.emitEvent({
+        type: ListStateFlowEventType.ITEM_UPDATED,
+        items: updatedItems,
+        timestamp: Date.now()
+      });
+    }
+  }
+
+  /**
+   * Add multiple items to the list with callback notification
+   * @param items Array of items to add
+   * @param callbackId Optional ID for the callback
+   * @param callback Optional callback to execute when items are added
+   */
+  addItemsWithCallback(
+    items: T[], 
+    callbackId?: string, 
+    callback?: ItemAdditionCallback<T>
+  ): void {
+    // Add the items using the standard method
+    this.addItems(items);
+    
+    // Execute the provided callback if any
+    if (callbackId && callback) {
+      this.itemAdditionCallbacks.set(callbackId, callback);
+      // Notify about each item
+      items.forEach(item => {
+        callback.onItemAdded(item);
+      });
+    }
+  }
+
+  /**
    * Batch update multiple items at once
    */
   batchUpdate(updates: { id: string | number; update: (item: T) => T }[]): void {
